@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>エンドロール作成</title>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.2/dist/ffmpeg.min.js"></script>
 <style>
 body {
   margin:0;
@@ -174,7 +175,7 @@ function 保存(){
   const chunks = [];
   const rec = new MediaRecorder(stream,{mimeType:"video/webm; codecs=vp9"});
   rec.ondataavailable = e=>{ if(e.data.size>0) chunks.push(e.data); };
-  rec.onstop = ()=>{
+  rec.onstop = async ()=>{
   const blob = new Blob(chunks,{type:"video/webm"});
 
   // プレビュー
@@ -182,11 +183,11 @@ function 保存(){
   プレビュー動画.src = url;
   プレビュー動画.play();
 
-  // すでに前のリンクがあれば消す（毎回作り直し）
+  // すでに前のリンクがあれば消す
   const old = document.getElementById("downloadLink");
   if(old) old.remove();
 
-  // ダウンロードリンク生成
+  // ダウンロードリンク生成（webm）
   const a = document.createElement("a");
   a.id = "downloadLink";
   a.href = url;
@@ -196,9 +197,11 @@ function 保存(){
   a.style.marginTop = "10px";
   a.style.color = "#4af";
   a.style.fontSize = "20px";
-
   document.body.appendChild(a);
-}
+
+  /* ★ ここを追加！！！ .mp4 を自動で変換してダウンロード ★ */
+  downloadMp4(blob);
+};
   rec.start();
 
   const fps = 30;
@@ -329,6 +332,39 @@ if (logo.complete) {
 
   rec.stop();
 };
+async function convertWebmToMp4(webmBlob) {
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true }); // logは消してもOK
+    await ffmpeg.load();
+
+    ffmpeg.FS("writeFile", "input.webm", await fetchFile(webmBlob));
+    await ffmpeg.run("-i", "input.webm", "output.mp4");
+
+    const data = ffmpeg.FS("readFile", "output.mp4");
+    return new Blob([data.buffer], { type: "video/mp4" });
+}
+async function downloadMp4(webmBlob) {
+    const mp4Blob = await convertWebmToMp4(webmBlob);
+
+    const url = URL.createObjectURL(mp4Blob);
+
+    // すでに前の mp4 リンクがある場合は削除
+    const old = document.getElementById("mp4Link");
+    if (old) old.remove();
+
+    // mp4 のダウンロードリンクを作成
+    const a = document.createElement("a");
+    a.id = "mp4Link";
+    a.href = url;
+    a.download = "endroll.mp4";
+    a.textContent = "▶ MP4版をダウンロード（高画質）";
+    a.style.display = "block";
+    a.style.marginTop = "10px";
+    a.style.color = "#fa4";
+    a.style.fontSize = "20px";
+
+    document.body.appendChild(a);
+}
 </script>
 </body>
 </html>
