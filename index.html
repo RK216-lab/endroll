@@ -84,11 +84,6 @@ canvas {
 <video id="プレビュー動画" controls></video>
 
 <script>
-/* ffmpegを先に読み込んでおく（これ必須！！） */
-let ffmpegReady = false;
-const { createFFmpeg, fetchFile } = FFmpeg;
-const ffmpeg = createFFmpeg({ log: false });
-ffmpeg.load().then(()=> ffmpegReady = true);
 const 画像選択 = document.getElementById('画像選択');
 const 現在の写真表示 = document.getElementById('現在の写真表示');
 const 時期入力 = document.getElementById('時期');
@@ -338,14 +333,13 @@ if (logo.complete) {
   rec.stop();
 };
 async function convertWebmToMp4(webmBlob) {
-
-    if (!ffmpegReady) {
-        alert("MP4変換を準備中… 2〜5秒後にもう一度試してね！");
-        return;
-    }
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true }); // logは消してもOK
+    await ffmpeg.load();
 
     ffmpeg.FS("writeFile", "input.webm", await fetchFile(webmBlob));
     await ffmpeg.run("-i", "input.webm", "output.mp4");
+
     const data = ffmpeg.FS("readFile", "output.mp4");
     return new Blob([data.buffer], { type: "video/mp4" });
 }
