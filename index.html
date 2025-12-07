@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>エンドロール作成</title>
+<style>
+body {
+  margin:0;
+  padding:20px;
+  background:#111;
+  color:white;
+  font-family:"ＭＳ 明朝","MS Mincho",serif;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:20px;
+}
+
+/* ─ UIをミニマルに ─ */
+h2 { margin:0; font-size:26px; }
+
+label, input[type="text"], button {
+  width:350px;
+  background:#222;
+  padding:10px;
+  border-radius:6px;
+  border:none;
+  color:white;
+  font-size:16px;
+}
+label { cursor:pointer; }
+input[type="file"] { margin-top:6px; }
+
+button {
+  background:#444;
+  cursor:pointer;
+  transition:0.2s;
+}
+button:hover { background:#666; }
+
+#矢印操作 {
+  display:flex;
+  align-items:center;
+  gap:15px;
+}
+#現在の写真表示 {
+  width:320px;
+  height:320px;
+  object-fit:contain;
+  border:1px solid #555;
+}
+
+canvas {
+  background:black;
+  width:800px; height:450px;
+  border:2px solid #333;
+}
+</style>
+</head>
+<body>
+
+<h2>エンドロール作成</h2>
+
+<label>画像を選択
+  <input type="file" id="画像選択" multiple accept="image/*">
+</label>
+
+<input type="text" id="最初のタイトル" placeholder="最初のタイトル（画像なし）">
+<input type="text" id="最後のタイトル" placeholder="最後のタイトル">
+
+<div id="矢印操作">
+  <button id="前へ">⬅️</button>
+  <img id="現在の写真表示">
+  <button id="次へ">➡️</button>
+</div>
+
+<input type="text" id="時期" placeholder="時期（年など）">
+<input type="text" id="名前" placeholder="出来事・名前など">
+
+<button id="動画作成">動画作成🎬</button>
+
+<canvas id="canvas" width="800" height="450"></canvas>
+<video id="プレビュー動画" controls></video>
+
+<script>
+const 画像選択 = document.getElementById('画像選択');
+const 現在の写真表示 = document.getElementById('現在の写真表示');
+const 時期入力 = document.getElementById('時期');
+const 名前入力 = document.getElementById('名前');
+const 前へボタン = document.getElementById('前へ');
+const 次へボタン = document.getElementById('次へ');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const プレビュー動画 = document.getElementById('プレビュー動画');
+const 最初のタイトル = document.getElementById('最初のタイトル');
+const 最後のタイトル = document.getElementById('最後のタイトル');
+const 動画作成ボタン = document.getElementById('動画作成');
+
+let 写真リスト = [];
+let 現在インデックス = 0;
+
+/* 画像読み込み */
+画像選択.addEventListener('change', e=>{
+  写真リスト = [];
+  現在インデックス = 0;
+  const files = Array.from(e.target.files);
+
+  files.forEach(file=>{
+    if(!file.type.startsWith("image")) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const img = new Image();
+      img.onload = ()=> {
+        // 時期・名前は後で入力する前提。未入力だと空文字になるが、保存ミスを防ぐためinput保存を必ず行うようにする。
+        写真リスト.push({img,時期:"",名前:""});
+        if(写真リスト.length===1) 更新();
+      }
+      img.src = ev.target.result;
+    }
+    reader.readAsDataURL(file);
+  });
+});
+
+/* 表示更新 */
+function 更新(){
+  if(写真リスト.length===0){
+    現在の写真表示.src = "";
+    時期入力.value = "";
+    名前入力.value = "";
+    return;
+  }
+  const d = 写真リスト[現在インデックス];
+  現在の写真表示.src = d.img.src;
+  時期入力.value = d.時期;
+  名前入力.value = d.名前;
+}
+
+/* 入力保存 */
+function 保存(){
+  if(写真リスト.length===0) return;
+  // 空欄でも必ず保存（未保存で生成すると1枚目だけになる原因の多くはここ）
+  写真リスト[現在インデックス].時期 = 時期入力.value || "";
+  写真リスト[現在インデックス].名前 = 名前入力.value || "";
+}
+
+/* 矢印操作 */
+前へボタン.onclick = ()=>{
+  保存();
+  if(写真リスト.length===0) return;
+  現在インデックス = (現在インデックス -1 + 写真リスト.length) % 写真リスト.length;
+  更新();
+}
+次へボタン.onclick = ()=>{
+  保存();
+  if(写真リスト.length===0) return;
+  現在インデックス = (現在インデックス +1) % 写真リスト.length;
+  更新();
+}
+
+/* ─────────────
+　　 動画生成
+────────────── */
+動画作成ボタン.onclick = async()=>{
+
+  if(写真リスト.length===0){
+    alert("写真がないよ〜！");
+    return;
+  }
+
+  // 生成前に今見ている入力を保存（これがないと最新編集が反映されない）
+  保存();
+
+  const stream = canvas.captureStream();
+  const chunks = [];
+  const rec = new MediaRecorder(stream,{mimeType:"video/webm; codecs=vp9"});
+  rec.ondataavailable = e=>{ if(e.data.size>0) chunks.push(e.data); };
+  rec.onstop = ()=>{
+  const blob = new Blob(chunks,{type:"video/webm"});
+
+  // プレビュー
+  const url = URL.createObjectURL(blob);
+  プレビュー動画.src = url;
+  プレビュー動画.play();
+
+  // すでに前のリンクがあれば消す（毎回作り直し）
+  const old = document.getElementById("downloadLink");
+  if(old) old.remove();
+
+  // ダウンロードリンク生成
+  const a = document.createElement("a");
+  a.id = "downloadLink";
+  a.href = url;
+  a.download = "endroll.webm";
+  a.textContent = "▶ 動画をダウンロード（保存）";
+  a.style.display = "block";
+  a.style.marginTop = "10px";
+  a.style.color = "#4af";
+  a.style.fontSize = "20px";
+
+  document.body.appendChild(a);
+}
+  rec.start();
+
+  const fps = 30;
+  const タイトル秒 = 5;
+  const 写真秒 = 8;
+
+  const wait = ()=> new Promise(r=>setTimeout(r, 1000/fps));
+
+  /* 画像を引き伸ばさず contain で左半分に配置 */
+  function drawContain(img){
+    const frameW = canvas.width/2;
+    const frameH = canvas.height;
+    const scale = Math.min(frameW / img.width, frameH / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    const x = 0;
+    const y = (canvas.height - h)/2;
+    ctx.drawImage(img, x, y, w, h);
+  }
+
+  /* フェード用（画像のみに使う） */
+  function drawImageWithFade(img, alpha){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawContain(img);
+    ctx.restore();
+  }
+
+  /* ─ 最初のタイトル（画像なし） ─ */
+  for(let f=0; f<fps*タイトル秒; f++){
+    ctx.fillStyle="black";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    let alpha = (f<fps) ? f/fps : (f>fps*タイトル秒-fps ? (fps*タイトル秒 - f)/fps : 1);
+
+    ctx.fillStyle="white";
+    ctx.font='48px "ＭＳ 明朝"';
+    ctx.fillText(
+      最初のタイトル.value || "",
+      canvas.width/2 - ctx.measureText(最初のタイトル.value || "").width/2,
+      canvas.height/2
+    );
+
+    await wait();
+  }
+
+  /* ─ 各写真フェードイン/アウト + 完全スクロール後に切り替え ─ */
+  for (const item of 写真リスト) {
+
+    // 各フレームの数
+    const totalFrames = 写真秒 * fps;
+
+    // テキストのスクロール開始/終了位置（下→上）
+    const scrollStart = canvas.height + 100;
+    const scrollEnd = -150;
+
+    for (let f = 0; f < totalFrames; f++) {
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      /* フェードイン・アウト for image */
+      let alpha = 1;
+      if (f < fps) alpha = f / fps;                                  // フェードイン（1秒）
+      if (f > totalFrames - fps) alpha = (totalFrames - f) / fps;     // フェードアウト（1秒）
+
+      // 画像だけフェード（テキストは独立して表示）
+      drawImageWithFade(item.img, alpha);
+
+      // テキストは常にフル不透明で描画（読みやすさ優先）
+      ctx.fillStyle = "white";
+      ctx.font = '30px "ＭＳ 明朝"';
+
+      // スクロール位置を一律で計算（必ず最後まで行く）
+      const t = f / totalFrames;
+      const yText = scrollStart + (scrollEnd - scrollStart) * t;
+
+      // 安全のため空文字でも描画しよう（1枚目以外が未入力ならここで""が描かれる）
+      ctx.fillText(item.時期 || "", canvas.width / 2 + 40, yText);
+      ctx.fillText(item.名前 || "", canvas.width / 2 + 40, yText + 40);
+
+      await wait();
+    }
+  }
+
+  /* ─ 最後のタイトル + 権利表記 ─ */
+  const rights = "©︎loyal corp. all rights reserved.";
+
+  for(let f=0; f<fps*タイトル秒; f++){
+    ctx.fillStyle="black";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    let alpha = (f<fps) ? f/fps : (f>fps*タイトル秒-fps ? (fps*タイトル秒 - f)/fps : 1);
+
+    ctx.fillStyle="white";
+    ctx.font='48px "ＭＳ 明朝"';
+    ctx.fillText(
+      最後のタイトル.value || "",
+      canvas.width/2 - ctx.measureText(最後のタイトル.value || "").width/2,
+      canvas.height/2
+    );
+
+    ctx.font='28px "ＭＳ 明朝"';
+    ctx.fillText(
+      rights,
+      canvas.width/2 - ctx.measureText(rights).width/2,
+      canvas.height/2 + 60
+    );
+
+    await wait();
+  }
+
+  rec.stop();
+};
+</script>
+</body>
+</html>
