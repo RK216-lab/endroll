@@ -307,6 +307,23 @@ function 保存(){
       canvas.height/2 + 60
     );
 
+    // ロゴ画像表示
+const logo = new Image();
+logo.src = "logo.png"; // りみが添付した画像のパス
+
+// 画像が読み込み済みなら描画
+if (logo.complete) {
+  const lw = 300;  // ロゴの幅（調整OK）
+  const lh = (logo.height / logo.width) * lw;
+  ctx.drawImage(
+    logo,
+    canvas.width / 2 - lw / 2,
+    canvas.height / 2 + 120, // 著作権表記のさらに下
+    lw,
+    lh
+  );
+}
+
     await wait();
   }
 
