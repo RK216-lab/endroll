@@ -1,370 +1,418 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>エンドロール作成</title>
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.2/dist/ffmpeg.min.js"></script>
-<style>
-body {
-  margin:0;
-  padding:20px;
-  background:#111;
-  color:white;
-  font-family:"ＭＳ 明朝","MS Mincho",serif;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:20px;
-}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Memorial End Roll Pro</title>
+  <style>
+    :root {
+      --bg-color: #080808;
+      --panel-bg: #121212;
+      --accent: #b89a5b; /* 落ち着いた金 */
+      --text-main: #e0e0e0;
+      --text-sub: #a0a0a0;
+      --border: #2a2a2a;
+      --font: "Hiragino Mincho ProN", "MS Mincho", serif;
+    }
 
-/* ─ UIをミニマルに ─ */
-h2 { margin:0; font-size:26px; }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font);
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+    }
 
-label, input[type="text"], button {
-  width:350px;
-  background:#222;
-  padding:10px;
-  border-radius:6px;
-  border:none;
-  color:white;
-  font-size:16px;
-}
-label { cursor:pointer; }
-input[type="file"] { margin-top:6px; }
+    .container {
+      max-width: 1000px;
+      width: 100%;
+    }
 
-button {
-  background:#444;
-  cursor:pointer;
-  transition:0.2s;
-}
-button:hover { background:#666; }
+    header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
 
-#矢印操作 {
-  display:flex;
-  align-items:center;
-  gap:15px;
-}
-#現在の写真表示 {
-  width:320px;
-  height:320px;
-  object-fit:contain;
-  border:1px solid #555;
-}
+    header h1 {
+      font-size: 2rem;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
 
-canvas {
-  background:black;
-  width:800px; height:450px;
-  border:2px solid #333;
-}
-</style>
+    /* 入力エリアの明示 */
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .upload-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      padding: 25px;
+      text-align: center;
+      border-radius: 4px;
+      transition: border-color 0.3s;
+    }
+
+    .upload-card:hover {
+      border-color: var(--accent);
+    }
+
+    .upload-card h3 {
+      margin-top: 0;
+      color: var(--accent);
+      font-size: 1.1rem;
+    }
+
+    .upload-card p {
+      font-size: 0.85rem;
+      color: var(--text-sub);
+    }
+
+    input[type="file"] {
+      margin-top: 15px;
+      font-size: 0.9rem;
+      color: var(--text-sub);
+    }
+
+    /* エディタエリア */
+    .editor-section {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      padding: 30px;
+      margin-bottom: 30px;
+    }
+
+    .photo-preview-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 25px;
+    }
+
+    #current-photo {
+      width: 560px;
+      height: 315px;
+      object-fit: contain;
+      background: #000;
+      border: 1px solid var(--border);
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      background: #000;
+      border: 1px solid var(--border);
+      color: #fff;
+      margin-bottom: 15px;
+      font-family: var(--font);
+    }
+
+    button {
+      background: var(--panel-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 10px 25px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: var(--border);
+    }
+
+    #generate-btn {
+      width: 100%;
+      padding: 20px;
+      background: var(--accent);
+      color: #000;
+      font-weight: bold;
+      font-size: 1.2rem;
+      border: none;
+      margin-top: 20px;
+      letter-spacing: 0.1em;
+    }
+
+    #generate-btn:disabled {
+      background: #444;
+      color: #777;
+    }
+
+    video {
+      width: 100%;
+      margin-top: 40px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+    }
+
+    .download-link {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      font-size: 1.2rem;
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
 </head>
 <body>
 
-<h2>エンドロール作成</h2>
+<div class="container">
+  <header>
+    <h1>追悼エンドロール</h1>
+    <p>故人との思い出</p>
+  </header>
 
-<label>画像を選択
-  <input type="file" id="画像選択" multiple accept="image/*">
-</label>
+  <div class="upload-grid">
+    <div class="upload-card">
+      <h3>1. 思い出の写真を選択</h3>
+      <p>※複数枚まとめて選択できます</p>
+      <input type="file" id="input-images" multiple accept="image/*">
+    </div>
+    <div class="upload-card">
+      <h3>2. 背景音楽(BGM)を選択</h3>
+      <p>MP3 / WAV / M4A / 動画ファイルも可</p>
+      <input type="file" id="input-audio" accept=".mp3,.m4a,.wav,.aac,.mp4,.mov,.m4v">
+    </div>
+  </div>
 
-<input type="text" id="最初のタイトル" placeholder="最初のタイトル（画像なし）">
-<input type="text" id="最後のタイトル" placeholder="最後のタイトル">
+  <div class="editor-section">
+    <div class="photo-preview-wrap">
+      <div class="controls-row">
+        <button id="btn-prev">前へ</button>
+        <button id="btn-next">次へ</button>
+      </div>
+      <img id="current-photo" alt="">
+    </div>
 
-<div id="矢印操作">
-  <button id="前へ">⬅️</button>
-  <img id="現在の写真表示">
-  <button id="次へ">➡️</button>
+    <label>表示期間・場所</label>
+    <input type="text" id="field-period" placeholder="例：昭和四十二年 八月 鎌倉にて">
+    <label>お名前・出来事</label>
+    <input type="text" id="field-caption" placeholder="例：親族一同での海水浴">
+
+    <hr style="border: 0; border-top: 1px solid var(--border); margin: 30px 0;">
+
+    <label>開始タイトル</label>
+    <input type="text" id="title-start" placeholder="例：田中太郎 儀 追悼のあゆみ">
+    <label>終了タイトル</label>
+    <input type="text" id="title-end" placeholder="例：安らかに。">
+  </div>
+
+  <button id="generate-btn">高品質動画を作成する</button>
+
+  <canvas id="render-canvas" width="1920" height="1080" style="display:none;"></canvas>
+  <video id="preview-video" controls></video>
+  <div id="dl-area"></div>
 </div>
 
-<input type="text" id="時期" placeholder="時期（年など）">
-<input type="text" id="名前" placeholder="出来事・名前など">
+<script type="module">
+import {
+  Output, BufferTarget, Mp4OutputFormat, CanvasSource, AudioBufferSource,
+  QUALITY_HIGH, getFirstEncodableVideoCodec, getFirstEncodableAudioCodec
+} from "https://esm.sh/mediabunny@latest";
 
-<button id="動画作成">動画作成🎬</button>
-
-<canvas id="canvas" width="800" height="450"></canvas>
-<video id="プレビュー動画" controls></video>
-
-<script>
-const 画像選択 = document.getElementById('画像選択');
-const 現在の写真表示 = document.getElementById('現在の写真表示');
-const 時期入力 = document.getElementById('時期');
-const 名前入力 = document.getElementById('名前');
-const 前へボタン = document.getElementById('前へ');
-const 次へボタン = document.getElementById('次へ');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const プレビュー動画 = document.getElementById('プレビュー動画');
-const 最初のタイトル = document.getElementById('最初のタイトル');
-const 最後のタイトル = document.getElementById('最後のタイトル');
-const 動画作成ボタン = document.getElementById('動画作成');
-
-let 写真リスト = [];
-let 現在インデックス = 0;
-
-/* 画像読み込み */
-画像選択.addEventListener('change', e=>{
-  写真リスト = [];
-  現在インデックス = 0;
-  const files = Array.from(e.target.files);
-
-  files.forEach(file=>{
-    if(!file.type.startsWith("image")) return;
-    const reader = new FileReader();
-    reader.onload = ev=>{
-      const img = new Image();
-      img.onload = ()=> {
-        // 時期・名前は後で入力する前提。未入力だと空文字になるが、保存ミスを防ぐためinput保存を必ず行うようにする。
-        写真リスト.push({img,時期:"",名前:""});
-        if(写真リスト.length===1) 更新();
-      }
-      img.src = ev.target.result;
-    }
-    reader.readAsDataURL(file);
-  });
-});
-
-/* 表示更新 */
-function 更新(){
-  if(写真リスト.length===0){
-    現在の写真表示.src = "";
-    時期入力.value = "";
-    名前入力.value = "";
-    return;
-  }
-  const d = 写真リスト[現在インデックス];
-  現在の写真表示.src = d.img.src;
-  時期入力.value = d.時期;
-  名前入力.value = d.名前;
-}
-
-/* 入力保存 */
-function 保存(){
-  if(写真リスト.length===0) return;
-  // 空欄でも必ず保存（未保存で生成すると1枚目だけになる原因の多くはここ）
-  写真リスト[現在インデックス].時期 = 時期入力.value || "";
-  写真リスト[現在インデックス].名前 = 名前入力.value || "";
-}
-
-/* 矢印操作 */
-前へボタン.onclick = ()=>{
-  保存();
-  if(写真リスト.length===0) return;
-  現在インデックス = (現在インデックス -1 + 写真リスト.length) % 写真リスト.length;
-  更新();
-}
-次へボタン.onclick = ()=>{
-  保存();
-  if(写真リスト.length===0) return;
-  現在インデックス = (現在インデックス +1) % 写真リスト.length;
-  更新();
-}
-
-/* ─────────────
-　　 動画生成
-────────────── */
-動画作成ボタン.onclick = async()=>{
-
-  if(写真リスト.length===0){
-    alert("写真がないよ〜！");
-    return;
-  }
-
-  // 生成前に今見ている入力を保存（これがないと最新編集が反映されない）
-  保存();
-
-  const stream = canvas.captureStream();
-  const chunks = [];
-  const rec = new MediaRecorder(stream,{mimeType:"video/webm; codecs=vp9"});
-  rec.ondataavailable = e=>{ if(e.data.size>0) chunks.push(e.data); };
-  rec.onstop = async ()=>{
-  const blob = new Blob(chunks,{type:"video/webm"});
-
-  // プレビュー
-  const url = URL.createObjectURL(blob);
-  プレビュー動画.src = url;
-  プレビュー動画.play();
-
-  // すでに前のリンクがあれば消す
-  const old = document.getElementById("downloadLink");
-  if(old) old.remove();
-
-  // ダウンロードリンク生成（webm）
-  const a = document.createElement("a");
-  a.id = "downloadLink";
-  a.href = url;
-  a.download = "endroll.webm";
-  a.textContent = "▶ 動画をダウンロード（保存）";
-  a.style.display = "block";
-  a.style.marginTop = "10px";
-  a.style.color = "#4af";
-  a.style.fontSize = "20px";
-  document.body.appendChild(a);
-
-  /* ★ ここを追加！！！ .mp4 を自動で変換してダウンロード ★ */
-  downloadMp4(blob);
+const ui = {
+  images: document.getElementById('input-images'),
+  audio: document.getElementById('input-audio'),
+  photo: document.getElementById('current-photo'),
+  period: document.getElementById('field-period'),
+  caption: document.getElementById('field-caption'),
+  btnPrev: document.getElementById('btn-prev'),
+  btnNext: document.getElementById('btn-next'),
+  btnGen: document.getElementById('generate-btn'),
+  canvas: document.getElementById('render-canvas'),
+  video: document.getElementById('preview-video'),
+  tStart: document.getElementById('title-start'),
+  tEnd: document.getElementById('title-end'),
+  dlArea: document.getElementById('dl-area')
 };
-  rec.start();
+
+const ctx = ui.canvas.getContext('2d');
+let photoList = [];
+let currentIndex = 0;
+let audioBuffer = null;
+
+// 著作権ロゴの読み込み
+const logo = new Image();
+logo.src = "logo.png";
+
+// 写真読み込み
+ui.images.onchange = async (e) => {
+  const files = Array.from(e.target.files);
+  photoList = await Promise.all(files.map(file => new Promise(res => {
+    const r = new FileReader();
+    r.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => res({ img, period: "", caption: "" });
+      img.src = ev.target.result;
+    };
+    r.readAsDataURL(file);
+  })));
+  currentIndex = 0;
+  updateUI();
+};
+
+// 音声/動画読み込み（MP3, WAV, M4A, MP4対応）
+ui.audio.onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  ui.btnGen.disabled = true;
+  ui.btnGen.textContent = "音声を解析中...";
+  try {
+    const audioCtx = new AudioContext();
+    const arrayBuffer = await file.arrayBuffer();
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    ui.btnGen.textContent = "高品質動画を作成する";
+  } catch (err) {
+    alert("この音声ファイルは読み込めませんでした。形式を確認してください。");
+  } finally {
+    ui.btnGen.disabled = false;
+  }
+};
+
+function updateUI() {
+  if (!photoList[currentIndex]) return;
+  const item = photoList[currentIndex];
+  ui.photo.src = item.img.src;
+  ui.period.value = item.period;
+  ui.caption.value = item.caption;
+}
+
+function saveCurrent() {
+  if (!photoList[currentIndex]) return;
+  photoList[currentIndex].period = ui.period.value;
+  photoList[currentIndex].caption = ui.caption.value;
+}
+
+ui.btnPrev.onclick = () => { saveCurrent(); currentIndex = (currentIndex - 1 + photoList.length) % photoList.length; updateUI(); };
+ui.btnNext.onclick = () => { saveCurrent(); currentIndex = (currentIndex + 1) % photoList.length; updateUI(); };
+
+async function getCodecConfig(hasAudio) {
+  const format = new Mp4OutputFormat();
+  const vCodec = await getFirstEncodableVideoCodec(format.getSupportedVideoCodecs(), { width: 1920, height: 1080 });
+  const aCodec = hasAudio ? await getFirstEncodableAudioCodec(format.getSupportedAudioCodecs()) : null;
+  return { format, vCodec, aCodec };
+}
+
+ui.btnGen.onclick = async () => {
+  if (photoList.length === 0) return alert("写真を選んでください");
+  saveCurrent();
 
   const fps = 30;
-  const タイトル秒 = 5;
-  const 写真秒 = 8;
+  const secTitle = 6;
+  const secPhoto = 8;
+  const totalSec = (secTitle * 2) + (secPhoto * photoList.length);
 
-  const wait = ()=> new Promise(r=>setTimeout(r, 1000/fps));
+  ui.btnGen.disabled = true;
+  ui.btnGen.textContent = "動画を生成しています（1080p）...";
 
-  /* 画像を引き伸ばさず contain で左半分に配置 */
-  function drawContain(img){
-    const frameW = canvas.width/2;
-    const frameH = canvas.height;
-    const scale = Math.min(frameW / img.width, frameH / img.height);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    const x = 0;
-    const y = (canvas.height - h)/2;
-    ctx.drawImage(img, x, y, w, h);
-  }
+  try {
+    const config = await getCodecConfig(!!audioBuffer);
+    const output = new Output({ format: config.format, target: new BufferTarget() });
+    
+    const vSource = new CanvasSource(ui.canvas, { 
+      codec: config.vCodec, 
+      bitrate: 8000000 // 8Mbpsの高画質設定
+    });
+    output.addVideoTrack(vSource, { frameRate: fps });
 
-  /* フェード用（画像のみに使う） */
-  function drawImageWithFade(img, alpha){
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    drawContain(img);
-    ctx.restore();
-  }
-
-  /* ─ 最初のタイトル（画像なし） ─ */
-  for(let f=0; f<fps*タイトル秒; f++){
-    ctx.fillStyle="black";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    let alpha = (f<fps) ? f/fps : (f>fps*タイトル秒-fps ? (fps*タイトル秒 - f)/fps : 1);
-
-    ctx.fillStyle="white";
-    ctx.font='48px "ＭＳ 明朝"';
-    ctx.fillText(
-      最初のタイトル.value || "",
-      canvas.width/2 - ctx.measureText(最初のタイトル.value || "").width/2,
-      canvas.height/2
-    );
-
-    await wait();
-  }
-
-  /* ─ 各写真フェードイン/アウト + 完全スクロール後に切り替え ─ */
-  for (const item of 写真リスト) {
-
-    // 各フレームの数
-    const totalFrames = 写真秒 * fps;
-
-    // テキストのスクロール開始/終了位置（下→上）
-    const scrollStart = canvas.height + 100;
-    const scrollEnd = -150;
-
-    for (let f = 0; f < totalFrames; f++) {
-      ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      /* フェードイン・アウト for image */
-      let alpha = 1;
-      if (f < fps) alpha = f / fps;                                  // フェードイン（1秒）
-      if (f > totalFrames - fps) alpha = (totalFrames - f) / fps;     // フェードアウト（1秒）
-
-      // 画像だけフェード（テキストは独立して表示）
-      drawImageWithFade(item.img, alpha);
-
-      // テキストは常にフル不透明で描画（読みやすさ優先）
-      ctx.fillStyle = "white";
-      ctx.font = '30px "ＭＳ 明朝"';
-
-      // スクロール位置を一律で計算（必ず最後まで行く）
-      const t = f / totalFrames;
-      const yText = scrollStart + (scrollEnd - scrollStart) * t;
-
-      // 安全のため空文字でも描画しよう（1枚目以外が未入力ならここで""が描かれる）
-      ctx.fillText(item.時期 || "", canvas.width / 2 + 40, yText);
-      ctx.fillText(item.名前 || "", canvas.width / 2 + 40, yText + 40);
-
-      await wait();
+    let aPromise = Promise.resolve();
+    if (audioBuffer && config.aCodec) {
+      const aSource = new AudioBufferSource({ codec: config.aCodec, bitrate: QUALITY_HIGH });
+      output.addAudioTrack(aSource);
+      aPromise = aSource.add(audioBuffer);
     }
+
+    await output.start();
+    let time = 0;
+    const step = 1 / fps;
+
+    const drawText = (txt, size, y, alpha = 1, centerX = ui.canvas.width * 0.75) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "white";
+      ctx.font = `${size}px "Hiragino Mincho ProN", serif`;
+      const w = ctx.measureText(txt).width;
+      ctx.fillText(txt, centerX - w/2, y);
+      ctx.restore();
+    };
+
+    // 1. Intro
+    for(let i=0; i<fps*secTitle; i++) {
+      ctx.fillStyle = "black"; ctx.fillRect(0,0,1920,1080);
+      drawText(ui.tStart.value, 80, 540, 1, 960);
+      await vSource.add(time, step); time += step;
+    }
+
+    // 2. Main Contents
+    for(const p of photoList) {
+      const frames = fps * secPhoto;
+      for(let i=0; i<frames; i++) {
+        ctx.fillStyle = "black"; ctx.fillRect(0,0,1920,1080);
+        
+        // Photo Fade
+        let alpha = 1;
+        if(i < fps) alpha = i/fps;
+        if(i > frames - fps) alpha = (frames - i)/fps;
+        
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        const scale = Math.min(960 / p.img.width, 1080 / p.img.height);
+        const nw = p.img.width * scale;
+        const nh = p.img.height * scale;
+        ctx.drawImage(p.img, (960-nw)/2, (1080-nh)/2, nw, nh);
+        ctx.restore();
+
+        // Scroll Text
+        const prog = i / frames;
+        const ty = 1180 + (-1400 * prog);
+        drawText(p.period, 45, ty, alpha);
+        drawText(p.caption, 55, ty + 80, alpha);
+
+        await vSource.add(time, step); time += step;
+      }
+    }
+
+    // 3. Outro
+    for(let i=0; i<fps*secTitle; i++) {
+      ctx.fillStyle = "black"; ctx.fillRect(0,0,1920,1080);
+      drawText(ui.tEnd.value, 80, 480, 1, 960);
+      drawText("©︎ Loyal corp. All rights reserved.", 35, 600, 1, 960);
+      if(logo.complete) {
+        const lw = 500;
+        const lh = (logo.height/logo.width)*lw;
+        ctx.drawImage(logo, 960 - lw/2, 700, lw, lh);
+      }
+      await vSource.add(time, step); time += step;
+    }
+
+    await aPromise;
+    await output.finalize();
+
+    const blob = new Blob([output.target.buffer], { type: await output.getMimeType() });
+    const url = URL.createObjectURL(blob);
+    ui.video.src = url;
+    ui.dlArea.innerHTML = `<a href="${url}" download="memorial_movie.mp4" class="download-link">動画を保存</a>`;
+
+  } catch (e) {
+    console.error(e);
+    alert("エラーが発生しました。");
+  } finally {
+    ui.btnGen.disabled = false;
+    ui.btnGen.textContent = "動画を作成";
   }
-
-  /* ─ 最後のタイトル + 権利表記 ─ */
-  const rights = "©︎loyal corp. all rights reserved.";
-
-  for(let f=0; f<fps*タイトル秒; f++){
-    ctx.fillStyle="black";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    let alpha = (f<fps) ? f/fps : (f>fps*タイトル秒-fps ? (fps*タイトル秒 - f)/fps : 1);
-
-    ctx.fillStyle="white";
-    ctx.font='48px "ＭＳ 明朝"';
-    ctx.fillText(
-      最後のタイトル.value || "",
-      canvas.width/2 - ctx.measureText(最後のタイトル.value || "").width/2,
-      canvas.height/2
-    );
-
-    ctx.font='28px "ＭＳ 明朝"';
-    ctx.fillText(
-      rights,
-      canvas.width/2 - ctx.measureText(rights).width/2,
-      canvas.height/2 + 60
-    );
-
-    // ロゴ画像表示
-const logo = new Image();
-logo.src = "logo.png"; // りみが添付した画像のパス
-
-// 画像が読み込み済みなら描画
-if (logo.complete) {
-  const lw = 300;  // ロゴの幅（調整OK）
-  const lh = (logo.height / logo.width) * lw;
-  ctx.drawImage(
-    logo,
-    canvas.width / 2 - lw / 2,
-    canvas.height / 2 + 120, // 著作権表記のさらに下
-    lw,
-    lh
-  );
-}
-
-    await wait();
-  }
-
-  rec.stop();
 };
-async function convertWebmToMp4(webmBlob) {
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: true }); // logは消してもOK
-    await ffmpeg.load();
-
-    ffmpeg.FS("writeFile", "input.webm", await fetchFile(webmBlob));
-    await ffmpeg.run("-i", "input.webm", "output.mp4");
-
-    const data = ffmpeg.FS("readFile", "output.mp4");
-    return new Blob([data.buffer], { type: "video/mp4" });
-}
-async function downloadMp4(webmBlob) {
-    const mp4Blob = await convertWebmToMp4(webmBlob);
-
-    const url = URL.createObjectURL(mp4Blob);
-
-    // すでに前の mp4 リンクがある場合は削除
-    const old = document.getElementById("mp4Link");
-    if (old) old.remove();
-
-    // mp4 のダウンロードリンクを作成
-    const a = document.createElement("a");
-    a.id = "mp4Link";
-    a.href = url;
-    a.download = "endroll.mp4";
-    a.textContent = "▶ MP4版をダウンロード（高画質）";
-    a.style.display = "block";
-    a.style.marginTop = "10px";
-    a.style.color = "#fa4";
-    a.style.fontSize = "20px";
-
-    document.body.appendChild(a);
-}
 </script>
 </body>
 </html>
